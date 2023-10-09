@@ -1,0 +1,480 @@
+*-----------------------------------------------------------------------------
+* <Rating>2484</Rating>
+*-----------------------------------------------------------------------------
+*HOANGND
+*thay doi lai suat account voi khach hang ca nhan, tren bang ACCOUNT.DEBIT.INT
+*-----------------------------------------------------------------------------
+* Modifications:
+* 05/10/2022 - T2420221005 - HUNGNN1
+*              CAP NHAT LAI SUAT CO SO KHI KHONG CO DL TRONG PI
+*
+* 30/11/2022 - T2420221130 - HUNGNN1
+*              CAP NHAT T24.LOAN.CODE
+* 07/03/2023 - T2420230307 - HUNGNN1
+*              CAP NHAT T24.LOAN.CODE
+*
+* 02/08/2023 - T2420230802 - HUNGNN1 - CR BY HUONGNT
+*              CAP NHAT LS TU DONG
+*-----------------------------------------------------------------------------
+    SUBROUTINE RTN.THAY.DOI.LS.AC
+    $INCLUDE ../T24_BP I_COMMON
+    $INCLUDE ../T24_BP I_EQUATE
+    $INCLUDE ../T24_BP I_ENQUIRY.COMMON
+    $INCLUDE ../T24_BP I_F.DATES
+    $INCLUDE ../T24_BP I_F.ACCOUNT
+    $INCLUDE ../T24_BP I_F.ACCOUNT.DEBIT.INT
+    $INCLUDE BP I_F.ABB.LD.INT.AUTO
+    $INCLUDE ../T24_BP I_F.CUSTOMER
+    $INCLUDE ../T24_BP I_F.PERIODIC.INTEREST
+
+
+    FN.CUS = 'F.CUSTOMER'
+    FV.CUS = ''
+    CALL OPF(FN.CUS,FV.CUS)
+
+    FN.AC = 'F.ACCOUNT'
+    FV.AC = ''
+    CALL OPF(FN.AC,FV.AC)
+
+    FN.AC.DEB.INT = 'F.ACCOUNT.DEBIT.INT'
+    FV.AC.DEB.INT = ''
+    CALL OPF(FN.AC.DEB.INT,FV.AC.DEB.INT)
+
+    FN.LD.INT.AUTO = 'F.ABB.LD.INT.AUTO'
+    FV.LD.INT.AUTO = ''
+    CALL OPF(FN.LD.INT.AUTO,FV.LD.INT.AUTO)
+
+    FN.PI = 'F.PERIODIC.INTEREST'
+    FV.PI = ''
+    CALL OPF(FN.PI,FV.PI)
+
+    GOSUB GET.REF
+    Y.PATH = 'MIG.DIR/AC.LD.UPD.LS'
+    OPEN Y.PATH TO YPATH THEN END
+*
+    DEFFUN ABB.SEND.MAIL(TO.MAIL,SUBJECT.MAIL,MESSAGE.MAIL)
+    Y.LIST.AC1 = ''
+    Y.LIST.AC2 = ''
+    Y.DATE = TODAY
+*
+    CALL EB.READLIST('SELECT ':FN.AC.DEB.INT:' BY-DSND @ID',LIST.AC.DEB.INT,'','','')
+*
+*    CRT 'INPUT ACCOUNT ID?'
+*    INPUT LIST.AC
+
+    LIST.AC = 'ALL'
+
+    IF LIST.AC EQ 'ALL' THEN
+        SEL.AC = 'SELECT ':FN.AC:" WITH LIMIT.REF EQ 10101.01 10102.01 10104.01 AND TAN.SUAT.TD.LS NE ''"
+        CALL EB.READLIST(SEL.AC,LIST.AC,'','','')
+    END
+    ELSE
+        CHANGE ' ' TO @FM IN LIST.AC
+    END
+
+    YC = DCOUNT(LIST.AC,@FM)
+    Y.DATA = ''
+* S-T2420230802
+	Y.T24.LC.LIST.TO.SKIP = 'youSTAFF-KHONG TSBD':@FM:'youSTAFFplus':@FM:'youSTAFF-TSBD':@FM:'youSTAFF-ABB Care (TSBD)':@FM:'youSTAFF-ABB Care (Khong TSBD)':@FM:'youSTAFF-KHONG TSBD-NGUOITHAN'
+	Y.T24.LC.LIST.TO.SKIP := @FM:'youSTAFF-TSBD-NGUOITHAN':@FM:'youSTAFF-ABB Care (TSBD)-NGUOITHAN':@FM:'youSTAFF-ABBCare(Ko TSBD)-NGUOITHAN':@FM:'youSTAFF-KHONG TSBD-NGUOI THAN'
+	Y.T24.LC.LIST.TO.SKIP := @FM:'youSTAFF-TSBD-NGUOI THAN':@FM:'CBNV-BDS.ND':@FM:'CBNV-BDS.NDA':@FM:'CBNV-BDS.XAYSUA':@FM:'CBNV-OTO.TD.MOI':@FM:'CBNV-OTO.TD.CU':@FM:'CBNV-TSBD-TD.QTS TU HDLD'
+	Y.T24.LC.LIST.TO.SKIP := @FM:'CBNV-TSBD-TD.TS KHAC':@FM:'CBNV-KHONG TSBD-TD':@FM:'CBNV-BDS.ND.NGUOI THAN':@FM:'CBNV-BDS.NDA.NGUOI THAN':@FM:'CBNV-BDS.XAYSUA.NGUOI THAN'
+	Y.T24.LC.LIST.TO.SKIP := @FM:'CBNV-OTO.TD.MOI.NGUOI THAN':@FM:'CBNV-OTO.TD.CU.NGUOI THAN':@FM:'CBNV-TSBD-TD.NGUOI THAN':@FM:'CBNV-KHONG TSBD-TD.NGUOI THAN':@FM:'CBNV-TSBD-TD.QTS TU HDLD'
+* E-T2420230802
+
+    I = 0
+    LOOP
+        REMOVE Y.AC.ID FROM LIST.AC SETTING POS
+    WHILE Y.AC.ID:POS
+        I++
+        CRT@(8,10):I:'/':YC
+
+        CALL F.READ(FN.AC,Y.AC.ID,R.AC,FV.AC,'')
+        Y.CUS.ID = R.AC<AC.CUSTOMER>
+        CALL F.READ(FN.CUS,Y.CUS.ID,R.CUS,FV.CUS,'')
+        Y.SECTOR = R.CUS<EB.CUS.SECTOR>
+
+        IF Y.SECTOR LT 1001 OR Y.SECTOR GT 1999 OR Y.SECTOR EQ 1013 THEN
+            CONTINUE
+        END
+
+        Y.TAN.SUAT.LS = R.AC<AC.LOCAL.REF,POS.LS>
+
+*IF Y.TAN.SUAT.LS[9,3] NE 'M01' THEN CONTINUE
+*
+*   COMI = Y.TAN.SUAT.LS
+*   CALL CFQ
+*   IF LEFT(COMI,8) GT TODAY THEN CONTINUE
+*
+        Y.LS = ''
+
+        Y.LIMIT.REF = R.AC<AC.LIMIT.REF>
+        Y.CUS.ID = R.AC<AC.CUSTOMER>
+        Y.CO.CODE = R.AC<AC.CO.CODE>
+        Y.T24.CODE = R.AC<AC.LOCAL.REF,POS22>
+        Y.CUOI.LSUD = R.AC<AC.LOCAL.REF,POS23>
+*S-T2420221005
+        Y.ADDITIONAL.INFO = R.AC<AC.LOCAL.REF,POS24>
+         Y.CUOI.LSUD = R.AC<AC.LOCAL.REF,POS23>
+          Y.CUOI.LSUD = R.AC<AC.LOCAL.REF,POS23>
+        GOSUB SUB.UPDATE.T24.LOAN.CODE
+*E-T2420221005
+
+        IF Y.CUOI.LSUD NE '' THEN
+            CALL CDT(84,Y.CUOI.LSUD,1)
+        END
+
+        IF LEN(Y.CUOI.LSUD) GT 8 THEN
+            CONTINUE
+        END
+        IF (Y.CUOI.LSUD NE '' AND Y.CUOI.LSUD GT TODAY) THEN
+            CALL RTN.UPD.TAN.SUAT.LS(Y.AC.ID)
+            CONTINUE
+        END
+
+        IF (Y.CUOI.LSUD NE '' AND Y.CUOI.LSUD LT TODAY AND LEFT(Y.TAN.SUAT.LS,8) GT TODAY) THEN
+            CONTINUE
+        END
+
+        IF (Y.CUOI.LSUD EQ '' AND LEFT(Y.TAN.SUAT.LS,8) GT TODAY) THEN
+            CONTINUE
+        END
+
+*
+        Y.CHECK = 0
+
+*        FINDSTR Y.AC.ID IN LIST.AC.DEB.INT SETTING YPOS THEN
+*            Y.AC.DEB.ID = LIST.AC.DEB.INT<YPOS>
+*        END
+*        FINDSTR Y.AC.ID IN LIST.AC.DEB.INT SETTING POS.AC.DEB.INT THEN
+*            Y.CHECK = 1
+*        END
+*
+        FINDSTR Y.AC.ID IN LIST.AC.DEB.INT SETTING YPOS THEN
+            Y.AC.DEB.ID = LIST.AC.DEB.INT<YPOS>
+            POS.AC.DEB.INT = YPOS
+            Y.CHECK = 1
+        END
+
+        CALL F.READ(FN.AC.DEB.INT,Y.AC.DEB.ID,R.AC.DEB.INT,FV.AC.DEB.INT,'')
+        IF R.AC.DEB.INT NE '' THEN
+            Y.DR.INT.RATE = R.AC.DEB.INT<IC.ADI.DR.INT.RATE>
+        END
+        ELSE
+            Y.DR.INT.RATE = 0
+        END
+*
+*IF (Y.LIMIT.REF EQ '10101.01' AND (Y.T24.CODE = 'youEVN' OR Y.T24.CODE = 'youSTAFF-TSBD' OR Y.T24.CODE = 'youOVERdraft')) OR (Y.LIMIT.REF EQ '10104.01' AND Y.T24.CODE EQ 'youTradingMargin') THEN
+        IF (Y.LIMIT.REF EQ '10101.01' OR Y.LIMIT.REF EQ '10104.01') THEN
+            SEL2 = 'SELECT ':FN.LD.INT.AUTO:" WITH T24.LOAN.CODE EQ ":Y.T24.CODE
+            CALL EB.READLIST(SEL2,LIST.LD.INT,'','','')
+            IF LIST.LD.INT NE '' THEN
+                Y.LD.INT.ID = LIST.LD.INT<1>
+                CALL F.READ(FN.LD.INT.AUTO,Y.LD.INT.ID,R.LD.INT,FV.LD.INT.AUTO,'')
+                Y.LSCS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS5>
+                GOSUB GET.LSCS.PI
+                IF R.LD.INT THEN
+                    IF Y.CHECK EQ 0 THEN          ;* ACCT CHUA SETUP LAI LAN NAO
+*                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS.THE>      ;*LS the chap
+                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS8> + Y.PI.RATE
+                    END
+                    ELSE
+*                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS3>         ;*ls the chap ky dc
+                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS7> + Y.PI.RATE
+                    END
+                END
+            END
+        END
+*IF Y.LIMIT.REF EQ '10102.01' AND (Y.T24.CODE = 'youEVN' OR Y.T24.CODE = 'youSTAFF-KHONG TSBD' OR Y.T24.CODE = 'youOVERdraft') THEN
+
+        IF Y.LIMIT.REF EQ '10102.01' THEN
+            SEL2 = 'SELECT ':FN.LD.INT.AUTO:" WITH T24.LOAN.CODE EQ '":Y.T24.CODE:"'"
+            CALL EB.READLIST(SEL2,LIST.LD.INT,'','','')
+            IF LIST.LD.INT NE '' THEN
+                Y.LD.INT.ID = LIST.LD.INT<1>
+                CALL F.READ(FN.LD.INT.AUTO,Y.LD.INT.ID,R.LD.INT,FV.LD.INT.AUTO,'')
+                Y.LSCS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS5>
+                GOSUB GET.LSCS.PI
+                IF R.LD.INT THEN
+                    IF Y.CHECK EQ 0 THEN
+*                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS.TIN>      ;*LS tin chap
+                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS9> + Y.PI.RATE
+                    END
+                    ELSE
+*                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS4>         ;*LS tin chap ky dc
+                        Y.LS = R.LD.INT<ABB.LD.INT.AUTO.LOCAL.REF,POS6> + Y.PI.RATE
+                    END
+                END
+            END
+        END
+*
+        GOSUB UPDATE.AC.DEB
+*
+    REPEAT
+
+**********
+    GOSUB AC.SEND.MAIL
+******
+    IF Y.DATA NE '' THEN
+*INS 'AC.DEB.ID#Ls The Chap#Ls Tin Chap' BEFORE Y.DATA<1>
+*WRITE Y.DATA ON YPATH,'THAY.DOI.LS.AC.':TODAY:'.TXT' ON ERROR
+*CRT 'UPDATE TAN SUAT LS ACCOUNT'
+    END
+    RETURN
+*
+AC.SEND.MAIL:
+    IF Y.LIST.AC1 NE '' OR Y.LIST.AC2 NE '' THEN
+        Y.LIST.AC1 = SORT(Y.LIST.AC1)
+        Y.LIST.AC2 = SORT(Y.LIST.AC2)
+        Y.AC.SEL<-1> = Y.LIST.AC1
+        Y.AC.SEL<-1> = Y.LIST.AC2
+        Y.AC.SEL = SORT(Y.AC.SEL)
+*
+        OPEN 'MIG.DIR/AC.LD.UPD.LS/DANHSACH' TO Y.PATH.DS THEN END
+        READ R.MAIL FROM Y.PATH.DS,"KHCN.MAIL.TXT" THEN
+            FOR I = 1 TO DCOUNT(R.MAIL,@FM)
+                Y.COMPANY = R.MAIL<I>['#',2,1]
+                Y.MAIL = R.MAIL<I>['#',1,1]
+                CHANGE ' ' TO '' IN Y.MAIL
+*TrungNV update - 20171109
+*Loc bo ky tu dac biet o cuoi chuoi
+                IF SEQ(RIGHT(Y.MAIL,1)) LT 48 OR SEQ(RIGHT(Y.MAIL,1)) GT  122 THEN
+                    Y.MAIL = LEFT(Y.MAIL,LEN(Y.MAIL)-1)
+                END
+*TrungNV end update
+
+                Y.AC.SEND1 = ''
+                Y.AC.SEND2 = ''
+                FINDSTR Y.COMPANY IN Y.LIST.AC1 SETTING POS1 THEN
+                    FOR J = POS1 TO DCOUNT(Y.LIST.AC1,@FM)
+                        Y.AC.CO.CODE = Y.LIST.AC1<J>['#',1,1]
+                        IF Y.AC.CO.CODE NE Y.COMPANY THEN
+                            BREAK
+                        END
+                        Y.AC.SEND1:=Y.LIST.AC1<J>['#',2,1]:','
+                    NEXT J
+                END
+                FINDSTR Y.COMPANY IN Y.LIST.AC2 SETTING POS1 THEN
+                    FOR J = POS1 TO DCOUNT(Y.LIST.AC2,@FM)
+                        Y.AC.CO.CODE = Y.LIST.AC2<J>['#',1,1]
+                        IF Y.AC.CO.CODE NE Y.COMPANY THEN
+                            BREAK
+                        END
+                        Y.AC.SEND2:=Y.LIST.AC2<J>['#',2,1]:','
+                    NEXT J
+                END
+                IF Y.AC.SEND1 NE '' OR Y.AC.SEND2 NE '' THEN
+*gui mail
+                    GOSUB SEND.MAIL
+*
+                    GOSUB WRITE.MAIL.SEND
+                END
+            NEXT I
+        END
+    END
+    RETURN
+*
+SEND.MAIL:
+    SUBJECT.MAIL = "Cap nhat lai suat tu dong"
+    MESSAGE.MAIL = "Kinh gui anh/chi thong tin ve cac khoan vay da duoc cap nhat lai suat tu dong cua ngay lien ke hom truoc va cac khoan vay den han dieu chinh lai suat trong ngay hom nay nhu sau:    " : CHARX(13)
+    MESSAGE.MAIL := 'Ngay ':RIGHT(TODAY,2):'/':TODAY[5,2]:'/':LEFT(TODAY,4):" nhu sau:        ": CHARX(13)
+*IF Y.LIST.AC2 NE '' THEN
+    MESSAGE.MAIL := "1. Danh sach cac khoan vay duoc cap nhat lai suat tu dong:  ": CHARX(13)
+    MESSAGE.MAIL := Y.AC.SEND2:"          " : CHARX(13)
+    MESSAGE.MAIL := "De nghi don vi kiem tra lai muc lai suat moi va thong bao den khach hang theo quy dinh hien hanh cua ABBANK           " : CHARX(13)
+*END
+*IF Y.LIST.AC1 NE '' THEN
+    MESSAGE.MAIL := "2. Danh sach cac khoan vay den han dieu chinh lai suat  ": CHARX(13)
+    MESSAGE.MAIL := Y.AC.SEND1:"          " : CHARX(13)
+    MESSAGE.MAIL := "Don vi trao doi voi khach hang ve muc lai suat ap dung cho phu hop.    " : CHARX(13)
+*END
+    MESSAGE.MAIL := "          " : CHARX(13)
+    MESSAGE.MAIL := "Best regards,"
+
+    TO.MAIL = Y.MAIL
+    T.RESULT=ABB.SEND.MAIL(TO.MAIL,SUBJECT.MAIL,MESSAGE.MAIL)
+    CRT T.RESULT
+    RETURN
+*
+WRITE.MAIL.SEND:
+    OPENSEQ Y.PATH,'AC.KHCN.MAIL.SENT.LIST.':Y.DATE:'.TXT' TO FILE.POINTER ELSE
+    END
+    WRITESEQ TO.MAIL:'#':SUBJECT.MAIL:'#':MESSAGE.MAIL APPEND TO FILE.POINTER ELSE
+        CRT ' LOI KHONG GHI DUOC FILE !'
+    END
+    CLOSESEQ FILE.POINTER
+    RETURN
+*
+UPDATE.AC.DEB:
+    Y.AC.DEB.ID= Y.AC.ID:'-':TODAY
+* S-T2420230802
+    IF Y.LS NE '' AND Y.DR.INT.RATE NE Y.LS THEN
+		IF Y.DR.INT.RATE LT Y.LS THEN
+			Y.LIST.AC2<-1> = Y.CO.CODE:'#':Y.AC.ID
+			IF POS.AC.DEB.INT THEN
+				OFS.MSG = Y.VERSION:"/I/PROCESS,AUTOINT1.1/ABC$12345/" : Y.CO.CODE : ",":Y.AC.DEB.ID
+	*OFS.MSG:= "CHARGE.KEY::=4,DR.INT.RATE:1=":Y.LS
+				OFS.MSG:= ",CHARGE.KEY::=4"
+				OFS.MSG:= ",INTEREST.DAY.BASIS::=E"
+				OFS.MSG:= ",DR.INT.RATE:1=":Y.LS
+			END
+			ELSE
+				OFS.MSG = Y.VERSION:"/I/PROCESS,AUTOINT1.1/ABC$12345/" : Y.CO.CODE : ",":Y.AC.DEB.ID
+				OFS.MSG:= ",CHARGE.KEY::=4"
+				OFS.MSG:= ",INTEREST.DAY.BASIS::=E"
+				OFS.MSG:= ",DR.INT.RATE:1=":Y.LS
+				OFS.MSG:= ",APR.REQUIRED::=NO"
+			END
+			GOSUB RUN.OFS
+		END ELSE
+			Y.CHECK.T24.LC.EXIST = COUNT(Y.T24.LC.LIST.TO.SKIP, Y.T24.CODE)
+			IF Y.CHECK.T24.LC.EXIST EQ 0 THEN
+				Y.LIST.AC2<-1> = Y.CO.CODE:'#':Y.AC.ID
+				IF POS.AC.DEB.INT THEN
+					OFS.MSG = Y.VERSION:"/I/PROCESS,AUTOINT1.1/ABC$12345/" : Y.CO.CODE : ",":Y.AC.DEB.ID
+		*OFS.MSG:= "CHARGE.KEY::=4,DR.INT.RATE:1=":Y.LS
+					OFS.MSG:= ",CHARGE.KEY::=4"
+					OFS.MSG:= ",INTEREST.DAY.BASIS::=E"
+					OFS.MSG:= ",DR.INT.RATE:1=":Y.LS
+				END
+				ELSE
+					OFS.MSG = Y.VERSION:"/I/PROCESS,AUTOINT1.1/ABC$12345/" : Y.CO.CODE : ",":Y.AC.DEB.ID
+					OFS.MSG:= ",CHARGE.KEY::=4"
+					OFS.MSG:= ",INTEREST.DAY.BASIS::=E"
+					OFS.MSG:= ",DR.INT.RATE:1=":Y.LS
+					OFS.MSG:= ",APR.REQUIRED::=NO"
+				END
+				GOSUB RUN.OFS
+			END
+		END
+* E-T2420230802
+    END
+    ELSE
+        Y.LIST.AC1<-1> = Y.CO.CODE:'#':Y.AC.ID
+    END
+*update lai tan suat account
+    CALL RTN.UPD.TAN.SUAT.LS(Y.AC.ID)
+*
+    RETURN
+*
+GET.REF:
+    LREF.APP = 'ABB.LD.INT.AUTO':FM:'ACCOUNT'
+*S-T2420221130
+    LREF.FLD = 'LS.THE.CHAP':VM:'LS.TIN.CHAP':VM:'LS.THE.CH.KY.DC':VM:'LS.TIN.CH.KY.DC':VM:'LAI.SUAT.CO.SO':VM:'LS.TIC.KY.DC.BD':VM:'LS.TC.KY.DC.BD':VM:'LS.THE.CHAP.BD':VM:'LS.TIN.CHAP.BD':FM:'TAN.SUAT.TD.LS':VM:'T24.LOAN.CODE':VM:'NGAY.CUOI.LSUD':VM:'ADDITIONAL.INFO'
+*E-T2420221130
+    CALL MULTI.GET.LOC.REF(LREF.APP, LREF.FLD, L.POS)
+    POS.THE = L.POS<1,1>
+    POS.TIN = L.POS<1,2>
+    POS3 = L.POS<1,3>
+    POS4 = L.POS<1,4>
+    POS5 = L.POS<1,5>         ;* LS CO SO
+    POS6 = L.POS<1,6>         ;* LS TIN CHAP BD KY DC
+    POS7 = L.POS<1,7>         ;* LS THE CHAP BD KY DC
+    POS8 = L.POS<1,8>         ;* LS THE CHAP BD
+    POS9 = L.POS<1,9>         ;* LS TIN CHAP BD
+
+    POS.LS = L.POS<2,1>
+    POS22 = L.POS<2,2>
+    POS23= L.POS<2,3>
+*S-T2420221130
+    POS24 = L.POS<2,4>
+*E-T2420221130
+*
+    Y.VERSION = 'ACCOUNT.DEBIT.INT,OFS'
+    OFS.SOURCE = 'OFS'
+    RETURN
+*
+RUN.OFS:
+    IF RIGHT(OFS.MSG,1) EQ  "," THEN OFS.MSG = LEFT(OFS.MSG,LEN(OFS.MSG) - 1)
+    OFS.MSG1 = OFS.MSG
+    CALL OFS.GLOBUS.MANAGER(OFS.SOURCE,OFS.MSG)
+*
+    OPENSEQ Y.PATH,'UPD.LS.AC.DEB.INT.':TODAY:'.TXT' TO FILE.POINTER ELSE
+    END
+    WRITESEQ OFS.MSG1 APPEND TO FILE.POINTER ELSE
+        CRT ' LOI KHONG GHI DUOC FILE !'
+    END
+    WRITESEQ OFS.MSG APPEND TO FILE.POINTER ELSE
+        CRT ' LOI KHONG GHI DUOC FILE !'
+    END
+    CLOSESEQ FILE.POINTER
+    RETURN
+*
+
+*LAY LAI SUAT CO SO-------------------------------------------------------------------------------------------
+GET.LSCS.PI:
+
+*S-T2420221005
+    Y.IS.HANDLER = Y.LSCS[1,6]
+    IF Y.IS.HANDLER NE "LSTKCK" THEN
+        CHANGE ',' TO '.' IN Y.LSCS
+        Y.LSCS.BAK = Y.LSCS
+        CHANGE '.' TO '' IN Y.LSCS
+
+        IF ISDIGIT(Y.LSCS) EQ 1 THEN
+            Y.PI.RATE = Y.LSCS.BAK
+        END
+        ELSE
+            Y.PI.RATE = 0
+        END
+        RETURN
+    END
+*E-T2420221005
+    Y.PI.ID = '01VND':TODAY
+    CALL F.READ(FN.PI,Y.PI.ID,R.LS,FV.PI,'')
+    Y.RES.PERIOD = R.LS<PI.REST.PERIOD>
+    CHANGE @VM TO @FM IN Y.RES.PERIOD
+    Y.RES.PERIOD = SPLICE('','~',Y.RES.PERIOD)
+    Y.PI.RATE = ''
+    FINDSTR '~':Y.LSCS['LSTKCK',2,1] IN Y.RES.PERIOD SETTING POS112 THEN
+        Y.PI.RATE = R.LS<PI.BID.RATE,POS112,1>
+    END
+    RETURN
+*-----------------------------------------------
+*S-T2420221130
+*-----------------------------------------------
+*-   U P D A T E T 2 4 . L O A N . C 0 D E     -
+*-----------------------------------------------
+SUB.UPDATE.T24.LOAN.CODE:
+    Y.ADDITIONAL.INFO.FLAG = 0
+    Y.T24.CODE.FLAG = 0
+    Y.T24.LC.LIST = "youSTAFF-TSBD":FM:"youSTAFF-ABB Care (TSBD)":FM:"CBNV-BDS.ND":FM:"CBNV-BDS.NDA":FM:"CBNV-BDS.XAYSUA":FM:"CBNV-OTO.TD.MOI":FM:"CBNV-OTO.TD.CU":FM:"CBNV-TSBD-TD.QTS TU HDLD":FM:"CBNV-TSBD-TD.TS KHAC":FM:"CBNV-KHONG TSBD-TD":FM:"youSTAFF-TSBD-NGUOI THAN":FM:"youSTAFF-TSBD-NGUOITHAN":FM:"youSTAFF-ABB Care (TSBD)-NGUOITHAN":FM:"CBNV-BDS.ND.NGUOI THAN":FM:"CBNV-BDS.NDA.NGUOI THAN":FM:"CBNV-BDS.XAYSUA.NGUOI THAN":FM:"CBNV-OTO.TD.MOI.NGUOI THAN":FM:"CBNV-OTO.TD.CU.NGUOI THAN":FM:"CBNV-TSBD-TD.NGUOI THAN":FM:"CBNV-KHONG TSBD-TD.NGUOI THAN":FM:"youSTAFF-KHONG TSBD":FM:"youSTAFF-ABB Care (Khong TSBD)":FM:"youSTAFF-KHONG TSBD-NGUOI THAN":FM:"youSTAFF-KHONG TSBD-NGUOITHAN":FM:"youSTAFF-ABBCare(Ko TSBD)-NGUOITHAN"
+    Y.NO.OF.T24.LC = DCOUNT(Y.T24.LC.LIST, FM)
+    FOR I.AC.T24.LC = 1 TO Y.NO.OF.T24.LC
+        Y.T24.LC.VAL = Y.T24.LC.LIST<I.AC.T24.LC>
+        IF Y.T24.CODE EQ Y.T24.LC.VAL THEN
+            Y.T24.CODE.FLAG = 1
+            BREAK
+        END
+    NEXT I.AC.T24.LC
+
+    Y.NO.OF.ADD.INFO = DCOUNT(Y.ADDITIONAL.INFO, @SM)
+    FOR I.AC.ADD.INFO = 1 TO Y.NO.OF.ADD.INFO
+        Y.ADD.INFO.VAL = Y.ADDITIONAL.INFO<1,1,I.AC.ADD.INFO>
+        IF Y.ADD.INFO.VAL EQ "VAY UU DAI CBNV ABBANK" THEN
+            Y.ADDITIONAL.INFO.FLAG = 1
+            BREAK
+        END
+    NEXT I.AC.ADD.INFO
+
+    IF Y.T24.CODE.FLAG EQ 0 AND Y.ADDITIONAL.INFO.FLAG EQ 1 AND (Y.LIMIT.REF EQ "10101.01" OR Y.LIMIT.REF EQ "10108.01" OR Y.LIMIT.REF EQ "12010.01" OR Y.LIMIT.REF EQ "12030.01" OR Y.LIMIT.REF EQ "26010.01" OR Y.LIMIT.REF EQ "26030.01") THEN
+        Y.T24.CODE = "youSTAFF-TSBD"
+    END
+
+    IF Y.T24.CODE.FLAG EQ 0 AND Y.ADDITIONAL.INFO.FLAG EQ 1 AND (Y.LIMIT.REF EQ "10102.01" OR Y.LIMIT.REF EQ "12020.01" OR Y.LIMIT.REF EQ "26020.01") THEN
+        Y.T24.CODE = "youSTAFF-KHONG TSBD"
+    END
+
+* S-T2420230307
+    Y.ADD.INFO.EXIST = COUNT(Y.ADDITIONAL.INFO, "CBNV GELEXIMCO NGHI VIEC")
+    IF (Y.T24.CODE EQ "GELEXIMCO STAFF-KHONG TSBD" OR Y.T24.CODE EQ "GELEXIMCO STAFF-CTTV-KHONG TSBD" OR Y.T24.CODE EQ "GELEXIMCO STAFF OD-KHONG TSBD") AND Y.ADD.INFO.EXIST GE 1 THEN
+        Y.T24.CODE = "youOVERdraft-KHONG TSBD"
+    END
+* E-T2420230307
+
+    RETURN
+*-----------------------------------------------
+*E-T2420221130
+*-----------------------------------------------
+
+END
